@@ -1,0 +1,42 @@
+{
+  "name": "invoice-hunter",
+  "version": "1.0.0",
+  "description": "",
+  "main": "./lib/index.js",
+  "bin": {
+    "invoice-hunter": "./bin/invoice-hunter"
+  },
+  "scripts": {
+    "start": "nodemon --watch 'src/**/*.ts' --exec 'ts-node' src/index.ts",
+    "create": "npm run build && npm run test",
+    "build": "tsc -p .",
+    "local": "sudo npm i -g && invoice-hunter",
+    "refresh": "rm -rf ./node_modules ./package-lock.json && npm install",
+    "format": "prettier ./src/**/*.ts --write"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@types/inquirer": "^7.3.1",
+    "@types/moment": "^2.13.0",
+    "@types/puppeteer": "^5.4.3",
+    "clear": "^0.1.0",
+    "cli-step": "^1.0.2",
+    "commander": "^7.1.0",
+    "figlet": "^1.5.0",
+    "inquirer": "^7.3.3",
+    "kleur": "^4.1.4",
+    "moment": "^2.29.1",
+    "path": "^0.12.7",
+    "puppeteer": "^7.1.0"
+  },
+  "devDependencies": {
+    "@types/clear": "^0.1.1",
+    "@types/figlet": "^1.2.1",
+    "@types/node": "^14.14.28",
+    "nodemon": "^2.0.7",
+    "prettier": "^2.2.1",
+    "ts-node": "^9.1.1",
+    "typescript": "^4.1.5"
+  }
+}
