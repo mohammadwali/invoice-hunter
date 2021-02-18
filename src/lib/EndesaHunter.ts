@@ -2,35 +2,7 @@ import fs from "fs-extra";
 import moment, { Moment } from "moment";
 import puppeteer, { ElementHandle } from "puppeteer";
 
-const basePath = "https://www.endesaclientes.com";
-
-const routes = {
-  login: "/login.html",
-  invoices: "/oficina/mis-facturas.html",
-};
-
-const selectors = {
-  login: {
-    username: "#username",
-    password: "#password",
-    submitButton: "#loginButton",
-  },
-  invoices: {
-    listTable: "#listado_luz-0",
-    listItems: "#listado_luz-0 > tbody > tr",
-    dateCell: "td:nth-child(1)",
-    actionCell: "td:last-child",
-    actionButton: "a[data-invoice-see-detail-open]",
-  },
-  invoice: {
-    content: "#contenedor_detalles",
-    downloadButton: "a.downloadBill",
-  },
-  languageBar: "#modulo-segmentador",
-  languageBarItemEn: "#modulo-segmentador li:last-child",
-
-  acceptCookiesButton: "#truste-consent-button",
-};
+import EndesaConfig from "../config/endesa-config";
 
 ///todo move to env file
 const credentials = {
@@ -38,29 +10,37 @@ const credentials = {
   password: "",
 };
 
-type ProcessedRow = {
-  date: Moment;
-  selector: string;
-};
+type ProcessedRow = { date: Moment; selector: string };
 
 export class EndesaHunter {
-  protected readonly rootPath: string;
-  protected readonly dateLocale: string;
-  protected readonly pageDateLocale: string;
-  protected readonly pageDateFormat: string;
+  private rowsToProcess: ProcessedRow[];
+  private page: puppeteer.Page | undefined;
+
+  protected readonly locale: string;
   protected readonly lastInvoiceDate: Moment;
   protected readonly browser: puppeteer.Browser;
-  protected page: puppeteer.Page | undefined;
-  private rowsToProcess: ProcessedRow[];
+
+  protected readonly routes: typeof EndesaConfig.routes;
+  protected readonly rootPath: typeof EndesaConfig.baseRoute;
+  protected readonly selectors: typeof EndesaConfig.selectors;
+  protected readonly pageLocale: typeof EndesaConfig.locale;
+  protected readonly pageDateFormat: typeof EndesaConfig.dateFormat;
+  protected readonly pageInvoiceName: typeof EndesaConfig.invoiceName;
+  protected readonly pageInvoiceExtension: typeof EndesaConfig.invoiceExtension;
 
   constructor(browser: puppeteer.Browser, lastInvoiceDate: Moment) {
+    this.locale = "en";
     this.browser = browser;
-    this.rootPath = basePath;
-    this.dateLocale = "en";
-    this.pageDateLocale = "es";
-    this.pageDateFormat = "DD MMM YYYY";
-    this.lastInvoiceDate = lastInvoiceDate;
     this.rowsToProcess = [];
+    this.lastInvoiceDate = lastInvoiceDate;
+
+    this.routes = EndesaConfig.routes;
+    this.selectors = EndesaConfig.selectors;
+    this.rootPath = EndesaConfig.baseRoute;
+    this.pageLocale = EndesaConfig.locale;
+    this.pageDateFormat = EndesaConfig.dateFormat;
+    this.pageInvoiceName = EndesaConfig.invoiceName;
+    this.pageInvoiceExtension = EndesaConfig.invoiceExtension;
   }
 
   async run() {
@@ -69,34 +49,29 @@ export class EndesaHunter {
     await this.downloadInvoices();
   }
 
-  async init() {
+  private async init() {
     this.page = await this.browser.newPage();
     await this.page.goto(this.rootPath);
   }
 
-  async login() {
+  private async login() {
     if (!this.page) {
       throw new Error("Missing init call");
     }
 
-    await this.page.goto(basePath + routes.login);
+    await this.page.goto(this.rootPath + this.routes.login);
 
-    await this.page.type(selectors.login.username, credentials.username);
-    await this.page.type(selectors.login.password, credentials.password);
+    await this.page.type(this.selectors.login.username, credentials.username);
+    await this.page.type(this.selectors.login.password, credentials.password);
 
-    await this.page.click(selectors.acceptCookiesButton);
-    await this.page.click(selectors.login.submitButton);
+    await this.page.click(this.selectors.acceptCookiesButton);
+    await this.page.click(this.selectors.login.submitButton);
 
     await this.page.waitForNavigation({ waitUntil: "networkidle0" });
     await this.page.waitForTimeout(2000);
   }
 
-  async navigateToInvoicesPage() {
-    await this.page?.goto(basePath + routes.invoices);
-    await this.page?.waitForSelector(selectors.invoices.listItems);
-  }
-
-  async downloadInvoices() {
+  private async downloadInvoices() {
     if (!this.page) {
       throw new Error("Missing init call");
     }
@@ -104,7 +79,7 @@ export class EndesaHunter {
     await this.navigateToInvoicesPage();
 
     await this.findAndSetRowsToProcess(
-      await this.page.$$(selectors.invoices.listItems)
+      await this.page.$$(this.selectors.invoices.listItems)
     );
 
     if (!this.rowsToProcess.length) {
@@ -123,6 +98,11 @@ export class EndesaHunter {
     }
   }
 
+  private async navigateToInvoicesPage() {
+    await this.page?.goto(this.rootPath + this.routes.invoices);
+    await this.page?.waitForSelector(this.selectors.invoices.listItems);
+  }
+
   private async findAndSetRowsToProcess(rows: ElementHandle[]): Promise<void> {
     this.rowsToProcess = await this.findRowsToProcess(rows);
   }
@@ -131,7 +111,7 @@ export class EndesaHunter {
     rows: ElementHandle[]
   ): Promise<ProcessedRow[]> {
     const result: ProcessedRow[] = [];
-    const { listItems: rowsSelector } = selectors.invoices;
+    const { listItems: rowsSelector } = this.selectors.invoices;
 
     for (let i = 0; i < rows.length; i++) {
       const currentRowSelector = `${rowsSelector}:nth-child(${i + 1})`;
@@ -140,8 +120,8 @@ export class EndesaHunter {
       const currentDate = moment(
         date.trim(),
         this.pageDateFormat,
-        this.pageDateLocale
-      ).locale(this.dateLocale);
+        this.pageLocale
+      ).locale("en");
 
       if (this.lastInvoiceDate.isBefore(currentDate)) {
         result.push({
@@ -155,9 +135,9 @@ export class EndesaHunter {
   }
 
   private async processRowItem(row: ProcessedRow) {
-    const { actionCell, actionButton } = selectors.invoices;
+    const { actionCell, actionButton } = this.selectors.invoices;
     await this.page?.click(`${row.selector} ${actionCell} ${actionButton}`);
-    await this.page?.waitForSelector(selectors.invoice.content, {
+    await this.page?.waitForSelector(this.selectors.invoice.content, {
       visible: true,
     });
     await this.saveInvoice(row.date.format("DD-MM-YY"));
@@ -172,16 +152,19 @@ export class EndesaHunter {
       downloadPath: rootDir,
     });
 
-    await this.page?.waitForSelector(selectors.invoice.downloadButton);
-    await this.page?.click(selectors.invoice.downloadButton);
+    await this.page?.waitForSelector(this.selectors.invoice.downloadButton);
+    await this.page?.click(this.selectors.invoice.downloadButton);
     await this.page?.waitForTimeout(2000);
 
-    await fs.rename(`${rootDir}/factura.pdf`, `${rootDir}/${fileName}.pdf`);
+    await fs.rename(
+      `${rootDir}/${this.pageInvoiceName}.${this.pageInvoiceExtension}`,
+      `${rootDir}/${fileName}.${this.pageInvoiceExtension}`
+    );
   }
 
   private async extracttDateFromRow(rowSelector: string): Promise<string> {
     return (await this.page?.$eval(
-      `${rowSelector} ${selectors.invoices.dateCell}`,
+      `${rowSelector} ${this.selectors.invoices.dateCell}`,
       (e) => e.textContent
     )) as string;
   }
