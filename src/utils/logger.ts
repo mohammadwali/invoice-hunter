@@ -7,5 +7,5 @@ const newLine = "\n";
 
 export const logTitleAndBanner = (): void => {
   console.log(magenta(figlet.textSync(ConsoleMessage.TITLE)));
-  console.info(magenta(ConsoleMessage.BANNER));
+  console.info(magenta(ConsoleMessage.BANNER), '\n');
 };

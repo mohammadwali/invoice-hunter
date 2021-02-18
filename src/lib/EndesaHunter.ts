@@ -1,3 +1,4 @@
+import fs from "fs-extra";
 import moment, { Moment } from "moment";
 import puppeteer from "puppeteer";
 
@@ -21,7 +22,10 @@ const selectors = {
     actionCell: "td:last-child",
     actionButton: "a[data-invoice-see-detail-open]",
   },
-
+  invoice: {
+    content: "#contenedor_detalles",
+    downloadButton: "a.downloadBill",
+  },
   languageBar: "#modulo-segmentador",
   languageBarItemEn: "#modulo-segmentador li:last-child",
 
@@ -77,6 +81,7 @@ export class EndesaHunter {
     await this.page.click(selectors.login.submitButton);
 
     await this.page.waitForNavigation({ waitUntil: "networkidle0" });
+    await this.page.waitForTimeout(2000);
   }
 
   async downloadInvoices() {
@@ -106,32 +111,32 @@ export class EndesaHunter {
       ).locale(this.dateLocale);
 
       if (this.lastInvoiceDate.isBefore(currentDate)) {
-        console.log(`Found match => ${date}`);
-
         await this.page.click(
           `${currentRowSelector} ${actionCell} ${actionButton}`
         );
-        await this.page.waitForNavigation({ waitUntil: "networkidle0" });
+        await this.page.waitForSelector(selectors.invoice.content, {
+          visible: true,
+        });
 
-        await this.downloadInvoice();
+        await this.downloadInvoice(currentDate.format("DD-MM-YY"));
       }
     }
   }
 
-  async downloadInvoice() {
+  async downloadInvoice(fileName: string) {
+    const rootDir = "./temp/invoices/endesa";
+
     /** @ts-ignore */
     await this.page?._client.send("Page.setDownloadBehavior", {
       behavior: "allow",
-      downloadPath: "./invoices",
+      downloadPath: rootDir,
     });
 
-    this.page?.waitForSelector("a.downloadBill");
-    this.page?.click("a.downloadBill");
-
-    await this.page?.waitForNavigation({ waitUntil: "networkidle0" });
-
-    // wait for 2 secs
+    await this.page?.waitForSelector(selectors.invoice.downloadButton);
+    await this.page?.click(selectors.invoice.downloadButton);
     await this.page?.waitForTimeout(2000);
+
+    await fs.rename(`${rootDir}/factura.pdf`, `${rootDir}/${fileName}.pdf`);
   }
 
   private async getDateFromRow(currentRowSelector: string): Promise<string> {
