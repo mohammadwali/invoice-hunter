@@ -18,6 +18,8 @@ const selectors = {
     listTable: "#listado_luz-0",
     listItems: "#listado_luz-0 > tbody > tr",
     dateCell: "td:nth-child(1)",
+    actionCell: "td:last-child",
+    actionButton: "a[data-invoice-see-detail-open]",
   },
 
   languageBar: "#modulo-segmentador",
@@ -84,29 +86,60 @@ export class EndesaHunter {
 
     await this.page.goto(basePath + routes.invoices);
 
-    const afterDate = moment("12-01-2020", "MM-DD-YYYY");
-    const { listItems: rowsSelector, dateCell } = selectors.invoices;
+    const {
+      actionCell,
+      actionButton,
+      listItems: rowsSelector,
+    } = selectors.invoices;
 
     await this.page.waitForSelector(rowsSelector);
-
     const rows = await this.page.$$(rowsSelector);
 
     for (let i = 0; i < rows.length; i++) {
-      let date = await this.page.$eval(
-        `${rowsSelector}:nth-child(${i + 1}) ${dateCell}`,
-        (e) => e.textContent
-      );
-      date = (date as string).trim();
+      const currentRowSelector = `${rowsSelector}:nth-child(${i + 1})`;
+      let date = await this.getDateFromRow(currentRowSelector);
 
       const currentDate = moment(
-        date,
+        date.trim(),
         this.pageDateFormat,
         this.pageDateLocale
       ).locale(this.dateLocale);
 
-      if (afterDate.isBefore(currentDate)) {
+      if (this.lastInvoiceDate.isBefore(currentDate)) {
         console.log(`Found match => ${date}`);
+
+        await this.page.click(
+          `${currentRowSelector} ${actionCell} ${actionButton}`
+        );
+        await this.page.waitForNavigation({ waitUntil: "networkidle0" });
+
+        await this.downloadInvoice();
       }
     }
+  }
+
+  async downloadInvoice() {
+    /** @ts-ignore */
+    await this.page?._client.send("Page.setDownloadBehavior", {
+      behavior: "allow",
+      downloadPath: "./invoices",
+    });
+
+    this.page?.waitForSelector("a.downloadBill");
+    this.page?.click("a.downloadBill");
+
+    await this.page?.waitForNavigation({ waitUntil: "networkidle0" });
+
+    // wait for 2 secs
+    await this.page?.waitForTimeout(2000);
+  }
+
+  private async getDateFromRow(currentRowSelector: string): Promise<string> {
+    if (!this.page) return "";
+
+    return (await this.page.$eval(
+      `${currentRowSelector} ${selectors.invoices.dateCell}`,
+      (e) => e.textContent
+    )) as string;
   }
 }
