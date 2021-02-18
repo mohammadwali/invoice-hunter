@@ -9,7 +9,7 @@ const main = async () => {
   const width = 1680;
   const height = 950;
   const browser = await puppeteer.launch({
-    headless: true,
+    headless: false,
     defaultViewport: { width, height },
     ignoreDefaultArgs: ["--enable-automation"],
     args: [`--window-size=${width},${height}`],

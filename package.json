@@ -7,9 +7,10 @@
     "invoice-hunter": "./bin/invoice-hunter"
   },
   "scripts": {
+    "debug": "rm -rf ./temp && npm run build && ./bin/invoice-hunter",
     "start": "nodemon --watch 'src/**/*.ts' --exec 'ts-node' src/index.ts",
     "create": "npm run build && npm run test",
-    "build": "tsc -p .",
+    "build": "rm -rf ./lib && tsc -p .",
     "local": "sudo npm i -g && invoice-hunter",
     "refresh": "rm -rf ./node_modules ./package-lock.json && npm install",
     "format": "prettier ./src/**/*.ts --write"

@@ -22,7 +22,7 @@ export class Hunter {
     const hunter = new EndesaHunter(
       this.browser,
       // todo fix me
-      moment("12-01-2020", "MM-DD-YYYY")
+      moment("01-07-2020", "DD-MM-YYYY")
     );
 
     try {

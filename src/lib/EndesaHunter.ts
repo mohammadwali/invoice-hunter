@@ -1,6 +1,6 @@
 import fs from "fs-extra";
 import moment, { Moment } from "moment";
-import puppeteer from "puppeteer";
+import puppeteer, { ElementHandle } from "puppeteer";
 
 const basePath = "https://www.endesaclientes.com";
 
@@ -38,6 +38,11 @@ const credentials = {
   password: "",
 };
 
+type ProcessedRow = {
+  date: Moment;
+  selector: string;
+};
+
 export class EndesaHunter {
   protected readonly rootPath: string;
   protected readonly dateLocale: string;
@@ -46,6 +51,7 @@ export class EndesaHunter {
   protected readonly lastInvoiceDate: Moment;
   protected readonly browser: puppeteer.Browser;
   protected page: puppeteer.Page | undefined;
+  private rowsToProcess: ProcessedRow[];
 
   constructor(browser: puppeteer.Browser, lastInvoiceDate: Moment) {
     this.browser = browser;
@@ -54,6 +60,7 @@ export class EndesaHunter {
     this.pageDateLocale = "es";
     this.pageDateFormat = "DD MMM YYYY";
     this.lastInvoiceDate = lastInvoiceDate;
+    this.rowsToProcess = [];
   }
 
   async run() {
@@ -84,25 +91,51 @@ export class EndesaHunter {
     await this.page.waitForTimeout(2000);
   }
 
+  async navigateToInvoicesPage() {
+    await this.page?.goto(basePath + routes.invoices);
+    await this.page?.waitForSelector(selectors.invoices.listItems);
+  }
+
   async downloadInvoices() {
     if (!this.page) {
       throw new Error("Missing init call");
     }
 
-    await this.page.goto(basePath + routes.invoices);
+    await this.navigateToInvoicesPage();
 
-    const {
-      actionCell,
-      actionButton,
-      listItems: rowsSelector,
-    } = selectors.invoices;
+    await this.findAndSetRowsToProcess(
+      await this.page.$$(selectors.invoices.listItems)
+    );
 
-    await this.page.waitForSelector(rowsSelector);
-    const rows = await this.page.$$(rowsSelector);
+    if (!this.rowsToProcess.length) {
+      //todo output or collect result count
+      return;
+    }
+
+    for (let i = 0; i < this.rowsToProcess.length; i++) {
+      if (i > 0) {
+        // navigate to the invoice page before downloading
+        // for the first item we are already on the invoice page
+        await this.navigateToInvoicesPage();
+      }
+
+      await this.processRowItem(this.rowsToProcess[i]);
+    }
+  }
+
+  private async findAndSetRowsToProcess(rows: ElementHandle[]): Promise<void> {
+    this.rowsToProcess = await this.findRowsToProcess(rows);
+  }
+
+  private async findRowsToProcess(
+    rows: ElementHandle[]
+  ): Promise<ProcessedRow[]> {
+    const result: ProcessedRow[] = [];
+    const { listItems: rowsSelector } = selectors.invoices;
 
     for (let i = 0; i < rows.length; i++) {
       const currentRowSelector = `${rowsSelector}:nth-child(${i + 1})`;
-      let date = await this.getDateFromRow(currentRowSelector);
+      let date = await this.extracttDateFromRow(currentRowSelector);
 
       const currentDate = moment(
         date.trim(),
@@ -111,19 +144,26 @@ export class EndesaHunter {
       ).locale(this.dateLocale);
 
       if (this.lastInvoiceDate.isBefore(currentDate)) {
-        await this.page.click(
-          `${currentRowSelector} ${actionCell} ${actionButton}`
-        );
-        await this.page.waitForSelector(selectors.invoice.content, {
-          visible: true,
+        result.push({
+          selector: currentRowSelector,
+          date: currentDate,
         });
-
-        await this.downloadInvoice(currentDate.format("DD-MM-YY"));
       }
     }
+
+    return result;
   }
 
-  async downloadInvoice(fileName: string) {
+  private async processRowItem(row: ProcessedRow) {
+    const { actionCell, actionButton } = selectors.invoices;
+    await this.page?.click(`${row.selector} ${actionCell} ${actionButton}`);
+    await this.page?.waitForSelector(selectors.invoice.content, {
+      visible: true,
+    });
+    await this.saveInvoice(row.date.format("DD-MM-YY"));
+  }
+
+  private async saveInvoice(fileName: string) {
     const rootDir = "./temp/invoices/endesa";
 
     /** @ts-ignore */
@@ -139,11 +179,9 @@ export class EndesaHunter {
     await fs.rename(`${rootDir}/factura.pdf`, `${rootDir}/${fileName}.pdf`);
   }
 
-  private async getDateFromRow(currentRowSelector: string): Promise<string> {
-    if (!this.page) return "";
-
-    return (await this.page.$eval(
-      `${currentRowSelector} ${selectors.invoices.dateCell}`,
+  private async extracttDateFromRow(rowSelector: string): Promise<string> {
+    return (await this.page?.$eval(
+      `${rowSelector} ${selectors.invoices.dateCell}`,
       (e) => e.textContent
     )) as string;
   }
