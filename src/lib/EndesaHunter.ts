@@ -1,17 +1,17 @@
 import fs from "fs-extra";
-import moment, { Moment } from "moment";
+import moment, { Moment, MomentFormatSpecification } from "moment";
 import puppeteer, { ElementHandle } from "puppeteer";
 
 import EndesaConfig from "../config/endesa-config";
-
-///todo move to env file
-const credentials = {
-  username: "",
-  password: "",
-};
+import { HuntConfig } from "../types/Hunter";
 
 type ProcessedRow = { date: Moment; selector: string };
 
+type Args = {
+  browser: puppeteer.Browser;
+  lastInvoiceDate: Moment;
+  config: HuntConfig;
+};
 export class EndesaHunter {
   private rowsToProcess: ProcessedRow[];
   private page: puppeteer.Page | undefined;
@@ -19,6 +19,7 @@ export class EndesaHunter {
   protected readonly locale: string;
   protected readonly lastInvoiceDate: Moment;
   protected readonly browser: puppeteer.Browser;
+  protected readonly invoiceDateFormat: string;
 
   protected readonly routes: typeof EndesaConfig.routes;
   protected readonly rootPath: typeof EndesaConfig.baseRoute;
@@ -27,12 +28,19 @@ export class EndesaHunter {
   protected readonly pageDateFormat: typeof EndesaConfig.dateFormat;
   protected readonly pageInvoiceName: typeof EndesaConfig.invoiceName;
   protected readonly pageInvoiceExtension: typeof EndesaConfig.invoiceExtension;
+  protected readonly pageCredentials: { username: string; password: string };
 
-  constructor(browser: puppeteer.Browser, lastInvoiceDate: Moment) {
+  constructor({ browser, config, lastInvoiceDate }: Args) {
     this.locale = "en";
-    this.browser = browser;
     this.rowsToProcess = [];
+
+    this.browser = browser;
+    this.pageCredentials = {
+      username: config.username,
+      password: config.password,
+    };
     this.lastInvoiceDate = lastInvoiceDate;
+    this.invoiceDateFormat = config.invoiceNameFormat ?? "DD-MM-YY";
 
     this.routes = EndesaConfig.routes;
     this.selectors = EndesaConfig.selectors;
@@ -61,8 +69,14 @@ export class EndesaHunter {
 
     await this.page.goto(this.rootPath + this.routes.login);
 
-    await this.page.type(this.selectors.login.username, credentials.username);
-    await this.page.type(this.selectors.login.password, credentials.password);
+    await this.page.type(
+      this.selectors.login.username,
+      this.pageCredentials.username
+    );
+    await this.page.type(
+      this.selectors.login.password,
+      this.pageCredentials.password
+    );
 
     await this.page.click(this.selectors.acceptCookiesButton);
     await this.page.click(this.selectors.login.submitButton);
@@ -140,7 +154,7 @@ export class EndesaHunter {
     await this.page?.waitForSelector(this.selectors.invoice.content, {
       visible: true,
     });
-    await this.saveInvoice(row.date.format("DD-MM-YY"));
+    await this.saveInvoice(row.date.format(this.invoiceDateFormat));
   }
 
   private async saveInvoice(fileName: string) {

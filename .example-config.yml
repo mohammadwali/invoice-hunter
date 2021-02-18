@@ -1,0 +1,15 @@
+version: 1.0
+hunt:
+  endesa:
+    username: ""
+    password: ""
+    invoiceNameFormat: "DD-MM-YY"
+  agua:
+    username: ""
+    password: ""
+    invoiceNameFormat: "DD-MM-YY"
+
+upload:
+  auth:
+    authKey: ""
+  path: "/uploadDir/"
