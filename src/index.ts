@@ -5,8 +5,14 @@ import puppeteer from "puppeteer";
 import commander, { Command } from "commander";
 
 import { Hunter } from "./lib/Hunter";
-import * as Logger from "./utils/logger";
 import { HunterConfig } from "./types/Hunter";
+
+import reporter, {
+  printHeader,
+  printFooter,
+  printUnkwonError,
+  printConfigNotFound,
+} from "./utils/reporter";
 
 const setupProgram = (): commander.Command => {
   const program = new Command("invoice-hunter");
@@ -25,12 +31,12 @@ const getConfig = async (configPath: string): Promise<any> => {
     //todo validate schema via yaml-schema-validator
   } catch (e) {
     if (e.code === "ENOENT") {
-      Logger.logConfigNotFound();
+      printConfigNotFound();
       process.exit(1);
       return;
     }
 
-    Logger.logUnkwonError();
+    printUnkwonError();
     process.exit(1);
   }
 
@@ -38,6 +44,8 @@ const getConfig = async (configPath: string): Promise<any> => {
 };
 
 const main = async () => {
+  printHeader();
+
   const program = setupProgram();
   const options = program.opts();
 
@@ -53,7 +61,7 @@ const main = async () => {
   const height = 950;
 
   const browser = await puppeteer.launch({
-    headless: false,
+    headless: true,
     defaultViewport: { width, height },
     ignoreDefaultArgs: ["--enable-automation"],
     args: [`--window-size=${width},${height}`],
@@ -61,13 +69,15 @@ const main = async () => {
 
   const hunter = new Hunter({
     browser,
+    reporter,
     config: config.hunt as HunterConfig,
   });
 
   await hunter.run();
   await browser.close();
+
+  printFooter();
 };
 
 clear();
-Logger.logTitleAndBanner();
 main();
