@@ -1,7 +1,10 @@
 import moment from "moment";
 import puppeteer from "puppeteer";
-import { HunterConfig } from "../types/Hunter";
+
+import { AguaHunter } from "./AguaHunter";
 import { EndesaHunter } from "./EndesaHunter";
+
+import { HunterConfig } from "../types/Hunter";
 
 type Args = { reporter: any; browser: puppeteer.Browser; config: HunterConfig };
 export class Hunter {
@@ -39,6 +42,13 @@ export class Hunter {
   }
 
   async huntAgua() {
-    return new Promise((r) => setTimeout(r, 5000));
+    const hunter = new AguaHunter({
+      browser: this.browser,
+      reporter: this.reporter,
+      config: this.config.agua,
+      downloadDir: this.downloadDir,
+      lastInvoiceDate: moment("01-07-2020", "DD-MM-YYYY"), // todo fix me
+    });
+    await hunter.run();
   }
 }

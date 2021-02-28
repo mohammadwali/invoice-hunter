@@ -62,7 +62,7 @@ const printWithFilepath = (
   report[type](`${message} ${green(path)}`);
 };
 
-report.seperator = "-".repeat(Math.floor(stdout.columns / 1.5));
+report.seperator = "-".repeat(45);
 report.getEmoji = emoji.get;
 report.printStep = printStep;
 report.getModulePrefix = getModulePrefix;

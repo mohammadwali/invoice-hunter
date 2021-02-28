@@ -5,6 +5,7 @@ import puppeteer, { ElementHandle } from "puppeteer";
 
 import EndesaConfig from "../config/endesa-config";
 import { HuntConfig } from "../types/Hunter";
+import { extractTextFromElement } from "../utils/page";
 
 type ProcessedRow = { date: Moment; selector: string; rawDate: string };
 
@@ -152,6 +153,7 @@ export class EndesaHunter {
       return { total: 0, downloaded: downloadedCount };
     }
 
+    this.print(`Found ${this.rowsToProcess.length} invoices`);
     this.reporter.printWithFilepath("Saving invoices to", this.downloadDir);
     const tick = this.reporter.progress(this.rowsToProcess.length);
 
@@ -195,12 +197,19 @@ export class EndesaHunter {
   private async findRowsToProcess(
     rows: ElementHandle[]
   ): Promise<ProcessedRow[]> {
+    if (!this.page) {
+      throw new Error("Page not initialized");
+    }
+
     const result: ProcessedRow[] = [];
     const { listItems: rowsSelector } = this.selectors.invoices;
 
     for (let i = 0; i < rows.length; i++) {
       const currentRowSelector = `${rowsSelector}:nth-child(${i + 1})`;
-      let date = await this.extracttDateFromRow(currentRowSelector);
+      const date = await extractTextFromElement(
+        this.page,
+        `${currentRowSelector} ${this.selectors.invoices.dateCell}`
+      );
 
       const currentDate = moment(
         date.trim(),
@@ -261,13 +270,6 @@ export class EndesaHunter {
       newFileName,
       "success"
     );
-  }
-
-  private async extracttDateFromRow(rowSelector: string): Promise<string> {
-    return (await this.page?.$eval(
-      `${rowSelector} ${this.selectors.invoices.dateCell}`,
-      (e) => e.textContent
-    )) as string;
   }
 
   private print(

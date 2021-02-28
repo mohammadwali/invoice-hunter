@@ -1,5 +1,9 @@
-const baseRoute = "https://www.endesaclientes.com";
+const locale = "es";
+const dateFormat = "DD MMM YYYY";
+const invoiceName = "factura";
+const invoiceExtension = "pdf";
 
+const baseRoute = "https://www.endesaclientes.com";
 const routes = {
   login: "/login.html",
   invoices: "/oficina/mis-facturas.html",
@@ -27,14 +31,6 @@ const selectors = {
 
   acceptCookiesButton: "#truste-consent-button",
 };
-
-const locale = "es";
-
-const dateFormat = "DD MMM YYYY";
-
-const invoiceName = "factura";
-
-const invoiceExtension = "pdf";
 
 export default {
   locale,
