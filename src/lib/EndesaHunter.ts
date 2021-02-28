@@ -1,5 +1,6 @@
 import fs from "fs-extra";
-import moment, { Moment, MomentFormatSpecification } from "moment";
+import path from "path";
+import moment, { Moment } from "moment";
 import puppeteer, { ElementHandle } from "puppeteer";
 
 import EndesaConfig from "../config/endesa-config";
@@ -12,6 +13,7 @@ type Args = {
   browser: puppeteer.Browser;
   lastInvoiceDate: Moment;
   config: HuntConfig;
+  downloadDir: string;
 };
 
 export class EndesaHunter {
@@ -35,13 +37,20 @@ export class EndesaHunter {
   protected readonly pageInvoiceExtension: typeof EndesaConfig.invoiceExtension;
   protected readonly pageCredentials: { username: string; password: string };
 
-  constructor({ browser, config, lastInvoiceDate, reporter }: Args) {
+  constructor({
+    browser,
+    config,
+    reporter,
+    downloadDir,
+    lastInvoiceDate,
+  }: Args) {
     this.locale = "en";
     this.rowsToProcess = [];
-    this.downloadDir = "./temp/invoices/endesa"; // todo get and concat root dir from args
 
     this.browser = browser;
     this.reporter = reporter;
+    this.downloadDir = path.join(downloadDir, "/endesa/");
+
     this.pageCredentials = {
       username: config.username,
       password: config.password,

@@ -1,19 +1,21 @@
-import Steps from "cli-step";
 import moment from "moment";
-import puppeteer, { Page } from "puppeteer";
+import puppeteer from "puppeteer";
 import { HunterConfig } from "../types/Hunter";
 import { EndesaHunter } from "./EndesaHunter";
 
 type Args = { reporter: any; browser: puppeteer.Browser; config: HunterConfig };
 export class Hunter {
   protected reporter: any;
-  protected readonly config: HunterConfig;
   protected browser: puppeteer.Browser;
+  protected readonly config: HunterConfig;
+  protected readonly downloadDir: string;
 
   constructor({ browser, config, reporter }: Args) {
     this.reporter = reporter;
     this.browser = browser;
+
     this.config = config;
+    this.downloadDir = config.downloadDir;
   }
 
   async run() {
@@ -28,9 +30,10 @@ export class Hunter {
   async huntEndesa() {
     const hunter = new EndesaHunter({
       browser: this.browser,
-      config: this.config.endesa,
       reporter: this.reporter,
-      lastInvoiceDate: moment("01-07-2020", "DD-MM-YYYY"),
+      config: this.config.endesa,
+      downloadDir: this.downloadDir,
+      lastInvoiceDate: moment("01-07-2020", "DD-MM-YYYY"), // todo fix me
     });
     await hunter.run();
   }

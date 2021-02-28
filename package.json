@@ -7,7 +7,7 @@
     "invoice-hunter": "./bin/invoice-hunter"
   },
   "scripts": {
-    "debug": "rm -rf ./temp && npm run build && ./bin/invoice-hunter",
+    "debug": "npm run build && ./bin/invoice-hunter",
     "start": "nodemon --watch 'src/**/*.ts' --exec 'ts-node' src/index.ts",
     "create": "npm run build && npm run test",
     "build": "rm -rf ./lib && tsc -p .",

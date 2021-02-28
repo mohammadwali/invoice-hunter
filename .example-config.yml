@@ -1,5 +1,8 @@
 version: 1.0
+
 hunt:
+  deleteAfterUpload: true
+  downloadDir: "./temp/invoices"
   endesa:
     username: ""
     password: ""
