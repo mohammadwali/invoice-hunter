@@ -4,6 +4,8 @@ CLI tool to crawl and download utility invoices and then upload to the google dr
 
 ## Usage
 ```sh
+$ npm i && npm run build
+
 # copy and edit the config
 $ cp ./.example-config.yml ~/invoice-hunter-config.yml
 
