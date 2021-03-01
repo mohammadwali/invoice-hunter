@@ -20,14 +20,17 @@ type ProcessedRow = {
 
 type Args = {
   reporter: any;
-  browser: puppeteer.Browser;
   lastInvoiceDate: Moment;
   config: HuntConfig;
   downloadDir: string;
 };
 
+// browser viewport && window size
+const width = 1680;
+const height = 950;
 export class AguaHunter {
   private rowsToProcess: ProcessedRow[];
+  protected browser: puppeteer.Browser;
   private page: puppeteer.Page | undefined;
 
   private readonly downloadDir: string;
@@ -35,7 +38,6 @@ export class AguaHunter {
   protected readonly reporter: any;
   protected readonly locale: string;
   protected readonly lastInvoiceDate: Moment;
-  protected readonly browser: puppeteer.Browser;
   protected readonly invoiceDateFormat: string;
 
   protected readonly routes: typeof AguaConfig.routes;
@@ -46,17 +48,10 @@ export class AguaHunter {
   protected readonly pageInvoiceExtension: typeof AguaConfig.invoiceExtension;
   protected readonly pageCredentials: { username: string; password: string };
 
-  constructor({
-    browser,
-    config,
-    reporter,
-    downloadDir,
-    lastInvoiceDate,
-  }: Args) {
+  constructor({ config, reporter, downloadDir, lastInvoiceDate }: Args) {
     this.locale = "en";
     this.rowsToProcess = [];
 
-    this.browser = browser;
     this.reporter = reporter;
     this.downloadDir = path.join(downloadDir, "/agua/");
 
@@ -86,6 +81,8 @@ export class AguaHunter {
       this.print("Logged in successfully");
     } catch (e) {
       this.print("Failed to login with provided credentials", "error");
+      await this.page?.close();
+      await this.browser?.close();
       return;
     }
 
@@ -107,12 +104,21 @@ export class AguaHunter {
     } catch (e) {
       this.print("Failed to download invoices", "error");
       this.print(e.message, "error");
-      return;
     }
+
+    await this.page?.close();
+    await this.browser?.close();
   }
 
   private async init() {
     this.print("Initializing...");
+    this.browser = await puppeteer.launch({
+      headless: true,
+      defaultViewport: { width, height },
+      ignoreDefaultArgs: ["--enable-automation"],
+      args: [`--window-size=${width},${height}`],
+    });
+
     this.page = await this.browser.newPage();
     await this.page.goto(this.rootPath);
   }
@@ -274,7 +280,7 @@ export class AguaHunter {
     const newFileName = `${row.date.format(this.invoiceDateFormat)}.${
       this.pageInvoiceExtension
     }`;
-    const previousFileName = `${row.invoiceId}.${this.pageInvoiceExtension}`;
+    const fileName = `${row.invoiceId}.${this.pageInvoiceExtension}`;
 
     const src = await extractSrcFromIframe(
       this.page,
@@ -294,14 +300,24 @@ export class AguaHunter {
     /// if we don't add a catch it, it will fail with the error:
     /// net::ERR_ABORTED at <url>
     await this.page.goto(url.toString()).catch((e) => null);
-    await this.waitUntilFileIsDownloaded(`${downloadPath}/${previousFileName}`);
+    await this.waitUntilFileIsDownloaded(`${downloadPath}/${fileName}`);
+    await this.page?.waitForTimeout(500);
 
     this.print("Invoice saved", "success");
 
     await fs.rename(
-      `${downloadPath}/${previousFileName}`,
+      `${downloadPath}/${fileName}`,
       `${downloadPath}/${newFileName}`
     );
+
+    // not sure why, but sometimes renmae creates a copy instead :(
+    if (await fs.pathExists(`${downloadPath}/${fileName}`)) {
+      await fs.remove(`${downloadPath}/${fileName}`);
+    }
+    // sometimes the .crdownload file is not being removed as browser is closed too soon maybe..
+    if (await fs.pathExists(`${downloadPath}/${fileName}.crdownload`)) {
+      await fs.remove(`${downloadPath}/${fileName}.crdownload`);
+    }
 
     this.reporter.printWithFilepath(
       "Invoice renamed to",
@@ -318,10 +334,9 @@ export class AguaHunter {
   }
 
   private async waitUntilFileIsDownloaded(filePath: string): Promise<void> {
-    if (await fs.pathExists(filePath)) {
-      return;
+    if (!(await fs.pathExists(filePath))) {
+      await this.page?.waitForTimeout(1500);
+      return this.waitUntilFileIsDownloaded(filePath);
     }
-    await this.page?.waitForTimeout(1000);
-    return this.waitUntilFileIsDownloaded(filePath);
   }
 }

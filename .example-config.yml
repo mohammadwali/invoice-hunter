@@ -16,5 +16,5 @@ upload:
   folderIds:
      - agua: ""
      - endesa: ""
-  duplicateBehaviour: "skip"
+  duplicateBehaviour: "skip" ## update / skip 
   credentialsFilePath: "/absolute/path/to/app-credentials-file"

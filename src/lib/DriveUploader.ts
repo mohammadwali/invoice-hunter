@@ -4,12 +4,15 @@ import { google, drive_v3 } from "googleapis";
 
 import { authScopes } from "../config/drive-uploader";
 import { GoogleAuthenticator } from "./GoogleAuthenticator";
+import { DuplicateBehaviour } from "../types/DriveUploader";
+import { content } from "googleapis/build/src/apis/content";
 
 type Args = {
   reporter: any;
+  folderIds: any[];
   appStoragePath: string;
   credentialsPath: string;
-  folderIds: any[];
+  duplicateBehaviour: DuplicateBehaviour;
 };
 
 const DriveMimeType = {
@@ -20,6 +23,7 @@ const DriveMimeType = {
 export class DriveUploader {
   protected drive: drive_v3.Drive;
   protected readonly reporter: Args["reporter"];
+  protected readonly duplicateBehaviour: DuplicateBehaviour;
   protected readonly folderIds: Record<"agua" | "endesa", string>;
   protected readonly authenticator: GoogleAuthenticator;
 
@@ -31,6 +35,7 @@ export class DriveUploader {
       endesa: args.folderIds.find((i) => typeof i.endesa !== "undefined")
         .endesa,
     };
+    this.duplicateBehaviour = args.duplicateBehaviour;
 
     const credentials = fs.readJSONSync(args.credentialsPath);
     this.authenticator = new GoogleAuthenticator({
@@ -53,6 +58,11 @@ export class DriveUploader {
       version: "v3",
     });
     this.print("Initialized drive uploader...");
+    this.print(
+      `Duplicate behaviour is set to: ${this.reporter.colors.green(
+        this.duplicateBehaviour
+      )}`
+    );
   }
 
   async upload(rootDir: string): Promise<void> {
@@ -84,7 +94,8 @@ export class DriveUploader {
 
     if (await fs.pathExists(invoicesDir)) {
       this.print("Starting upload...");
-      return this.uploadInvoices(invoicesDir, this.folderIds.agua);
+      await this.uploadInvoices(invoicesDir, this.folderIds.agua);
+      this.print("Upload finished", "success");
     }
 
     this.print("Directory for agua not found...");
@@ -95,7 +106,8 @@ export class DriveUploader {
 
     if (await fs.pathExists(invoicesDir)) {
       this.print("Starting upload...");
-      return this.uploadInvoices(invoicesDir, this.folderIds.endesa);
+      await this.uploadInvoices(invoicesDir, this.folderIds.endesa);
+      this.print("Upload finished", "success");
     }
 
     this.print("Directory for endesa not found, skipping...", "warn");
@@ -104,30 +116,117 @@ export class DriveUploader {
   private async uploadInvoices(rootDir: string, folderId: string) {
     let contents = await fs.readdir(rootDir);
     contents = contents.filter((f) => path.extname(f) === ".pdf");
+    const count = {
+      uploaded: 0,
+      skippedOrUpdated: 0,
+      total: contents.length,
+    };
 
-    this.print(`Found ${contents.length} to upload...`);
+    this.print(`Found ${contents.length} invoices to upload...`);
 
     for (let i = 0; i < contents.length; i++) {
-      const item = contents[i];
-      const text = `invoice ${item}...`;
+      const name = contents[i];
+      const mimeType = DriveMimeType.PDF;
+      const text = `invoice ${name}...`;
       const spinner = this.reporter.activity();
 
-      spinner.tick(`Uploading ${text}`);
+      spinner.tick(`Checking if invoice ${name} exists already...`);
+      const duplicateFile = await this.findInvoiceFileByName(name, mimeType);
 
-      try {
-        await this.createFile(
-          item,
-          DriveMimeType.PDF,
-          fs.createReadStream(path.join(rootDir, item)),
-          folderId
+      if (duplicateFile) {
+        this.print(`Invoice ${name} aleady exists`);
+
+        if (this.duplicateBehaviour === "update") {
+          spinner.tick(`Updating ${text}`);
+
+          await this.updateInvoice(
+            duplicateFile.id as string,
+            duplicateFile.mimeType as string,
+            fs.createReadStream(path.join(rootDir, name))
+          );
+          this.print(
+            `${this.reporter.colors.green("updated")} Invoice ${name}...`,
+            "log"
+          );
+          spinner.end();
+          count.skippedOrUpdated++;
+          continue;
+        }
+
+        spinner.end();
+        this.print(
+          `${this.reporter.colors.green("skipped")} Invoice ${name}...`,
+          "log"
         );
-        spinner.end();
-        this.print(`Uploaded ${text}`, "success");
-      } catch (e) {
-        spinner.end();
-        this.print(`Failed to upload ${text}`, "error");
-        this.print(e.message, "log");
+        count.skippedOrUpdated++;
+        continue;
       }
+
+      spinner.tick(`Uploading ${text}`);
+      await this.uploadInvoice(name, mimeType, rootDir, folderId);
+      spinner.end();
+      count.uploaded++;
+    }
+
+    this.print(
+      `${this.duplicateBehaviour === "skip" ? "Skipped" : "Updated"}: ${
+        count.skippedOrUpdated
+      }, Uploaded: ${count.uploaded}, Total: ${count.total}`
+    );
+  }
+
+  private async updateInvoice(
+    fileId: string,
+    mimeType: string,
+    body: fs.ReadStream
+  ) {
+    await this.drive.files.update({
+      fileId,
+      media: {
+        mimeType,
+        body,
+      },
+    });
+  }
+
+  private async findInvoiceFileByName(
+    name: string,
+    mimeType: string
+  ): Promise<drive_v3.Schema$File | null> {
+    try {
+      const result = await this.drive.files.list({
+        q: `(trashed=false and name='${name}') and mimeType='${mimeType}'`,
+        fields: "files(id,name)",
+        pageSize: 4,
+      });
+      return result.data.files ? result.data.files[0] : null;
+    } catch (e) {
+      this.print(`Failed to find duplicate for ${name}`, "warn");
+      this.print(e.message, "log");
+    }
+    return null;
+  }
+
+  private async uploadInvoice(
+    item: string,
+    mimeType: string,
+    rootDir: string,
+    folderId: string
+  ) {
+    const text = `invoice ${item}...`;
+
+    try {
+      await this.createFile(
+        item,
+        mimeType,
+        fs.createReadStream(path.join(rootDir, item)),
+        folderId
+      );
+
+      this.print(`Uploaded ${text}`, "success");
+    } catch (e) {
+      this.print(`Failed to upload ${text}`, "error");
+      this.print(e.message, "log");
     }
   }
 
@@ -143,44 +242,6 @@ export class DriveUploader {
       requestBody: { name, parents: folderId ? [folderId] : [] },
     });
     return result.data;
-  }
-
-  private async createFolders(
-    names: string[],
-    parentId: string
-  ): Promise<drive_v3.Schema$File[]> {
-    let result: drive_v3.Schema$File[] = [];
-
-    for (let i = 0; i < names.length; i++) {
-      const current = names[i];
-      result = result.concat(await this.createFolder(current, parentId));
-    }
-
-    return result;
-  }
-
-  private async listFolderContents() {
-    const response = await this.drive.files.list({
-      q: `(trashed=false and name='Test') and mimeType='${DriveMimeType.Folder}'`,
-      fields: "files(id,name,parents),nextPageToken",
-      pageSize: 20,
-    });
-
-    this.reporter.log(JSON.stringify(response.data, null, 4));
-  }
-
-  private async createFolder(name: string, parentFolderId: string) {
-    this.print(`Creating ${this.reporter.colors.green(name)} folder in drive`);
-    const response = await this.drive.files.create({
-      fields: "*",
-      requestBody: {
-        name,
-        parents: parentFolderId ? [parentFolderId] : [],
-        mimeType: DriveMimeType.Folder,
-      },
-    });
-
-    return response.data;
   }
 
   private print(

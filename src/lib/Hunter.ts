@@ -1,21 +1,19 @@
 import moment from "moment";
-import puppeteer from "puppeteer";
 
 import { AguaHunter } from "./AguaHunter";
 import { EndesaHunter } from "./EndesaHunter";
 
 import { HunterConfig } from "../types/Hunter";
 
-type Args = { reporter: any; browser: puppeteer.Browser; config: HunterConfig };
+type Args = { reporter: any; config: HunterConfig };
+
 export class Hunter {
   protected reporter: any;
-  protected browser: puppeteer.Browser;
   protected readonly config: HunterConfig;
   protected readonly downloadDir: string;
 
-  constructor({ browser, config, reporter }: Args) {
+  constructor({ config, reporter }: Args) {
     this.reporter = reporter;
-    this.browser = browser;
 
     this.config = config;
     this.downloadDir = config.downloadDir;
@@ -32,7 +30,6 @@ export class Hunter {
 
   async huntEndesa() {
     const hunter = new EndesaHunter({
-      browser: this.browser,
       reporter: this.reporter,
       config: this.config.endesa,
       downloadDir: this.downloadDir,
@@ -43,7 +40,6 @@ export class Hunter {
 
   async huntAgua() {
     const hunter = new AguaHunter({
-      browser: this.browser,
       reporter: this.reporter,
       config: this.config.agua,
       downloadDir: this.downloadDir,
