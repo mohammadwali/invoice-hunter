@@ -102,7 +102,7 @@ export class AguaHunter {
             : "info"
         );
       } else {
-        this.print("No invoices found to download", "warning");
+        this.print("No invoices found to download", "warn");
       }
     } catch (e) {
       this.print("Failed to download invoices", "error");
@@ -312,7 +312,7 @@ export class AguaHunter {
 
   private print(
     msg: string,
-    type: "info" | "warning" | "error" | "success" | "log" = "info"
+    type: "info" | "warn" | "error" | "success" | "log" = "info"
   ): void {
     this.reporter[type](msg);
   }

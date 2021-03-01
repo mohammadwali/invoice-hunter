@@ -2,7 +2,7 @@ version: 1.0
 
 hunt:
   deleteAfterUpload: true
-  downloadDir: "./temp/invoices"
+  downloadDir: "./temp"
   endesa:
     username: ""
     password: ""
@@ -13,6 +13,8 @@ hunt:
     invoiceNameFormat: "DD-MM-YY"
 
 upload:
-  auth:
-    authKey: ""
-  path: "/uploadDir/"
+  folderIds:
+     - agua: ""
+     - endesa: ""
+  duplicateBehaviour: "skip"
+  credentialsFilePath: "/absolute/path/to/app-credentials-file"

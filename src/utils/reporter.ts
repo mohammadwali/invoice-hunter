@@ -1,8 +1,7 @@
 import figlet from "figlet";
 import emoji from "node-emoji";
 import yurnalist from "yurnalist";
-import { green, magenta } from "kleur";
-import { stdout } from "process";
+import kleur,{ green, magenta } from "kleur";
 
 const Messages = {
   title: "invoice-hunter",
@@ -57,11 +56,12 @@ export const printStep = (
 const printWithFilepath = (
   message: string,
   path: string,
-  type: "info" | "warning" | "error" | "success" = "info"
+  type: "info" | "warn" | "error" | "success" = "info"
 ): void => {
   report[type](`${message} ${green(path)}`);
 };
 
+report.colors = kleur;
 report.seperator = "-".repeat(45);
 report.getEmoji = emoji.get;
 report.printStep = printStep;

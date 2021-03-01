@@ -1,7 +1,6 @@
 import clear from "clear";
 import fs from "fs-extra";
 import yaml from "js-yaml";
-import puppeteer from "puppeteer";
 import commander, { Command } from "commander";
 
 import { Hunter } from "./lib/Hunter";
@@ -13,6 +12,11 @@ import reporter, {
   printUnkwonError,
   printConfigNotFound,
 } from "./utils/reporter";
+
+import { DriveUploader } from "./lib/DriveUploader";
+import { getAppStoragePath } from "./utils/storage";
+
+const appStoragePath = getAppStoragePath();
 
 const setupProgram = (): commander.Command => {
   const program = new Command("invoice-hunter");
@@ -57,24 +61,37 @@ const main = async () => {
   const config = await getConfig(options.config);
 
   // Viewport && Window size
-  const width = 1680;
-  const height = 950;
+  // const width = 1680;
+  // const height = 950;
 
-  const browser = await puppeteer.launch({
-    headless: true,
-    defaultViewport: { width, height },
-    ignoreDefaultArgs: ["--enable-automation"],
-    args: [`--window-size=${width},${height}`],
-  });
+  // const browser = await puppeteer.launch({
+  //   headless: true,
+  //   defaultViewport: { width, height },
+  //   ignoreDefaultArgs: ["--enable-automation"],
+  //   args: [`--window-size=${width},${height}`],
+  // });
 
-  const hunter = new Hunter({
-    browser,
+  // const hunter = new Hunter({
+  //   browser,
+  //   reporter,
+  //   config: config.hunt as HunterConfig,
+  // });
+
+  // await hunter.run();
+  // await browser.close();
+
+  const uploader = new DriveUploader({
     reporter,
-    config: config.hunt as HunterConfig,
+    appStoragePath,
+    folderIds: config.upload.folderIds,
+    credentialsPath: config.upload.credentialsFilePath,
   });
 
-  await hunter.run();
-  await browser.close();
+  await uploader.upload(config.hunt.downloadDir);
+
+  // if (config.hunt.deleteAfterUpload) {
+  //   await fs.rmdir(config.hunt.downloadDir);
+  // }
 
   printFooter();
 };
