@@ -17,16 +17,6 @@ const serverUrl = `http://localhost:${port}`;
 const OAuth2Client = google.auth.OAuth2;
 const authScopes = ["https://www.googleapis.com/auth/drive.file"];
 
-async function main(keys: AppCredentials) {
-  //   const oAuth2Client = await getAuthenticatedClient(keys);
-  //   // After acquiring an access_token, you may want to check on the audience, expiration,
-  //   // or original scopes requested.  You can do that with the `getTokenInfo` method.
-  //   const tokenInfo = await oAuth2Client.getTokenInfo(
-  //     oAuth2Client.credentials.access_token as string
-  //   );
-  //   console.log(tokenInfo);
-}
-
 export const authenticateWithHttpServer = (
   authorizeUrl: string
 ): Promise<string> =>
