@@ -131,7 +131,7 @@ export class DriveUploader {
       const spinner = this.reporter.activity();
 
       spinner.tick(`Checking if invoice ${name} exists already...`);
-      const duplicateFile = await this.findInvoiceFileByName(name, mimeType);
+      const duplicateFile = await this.findInvoiceByName(name, mimeType);
 
       if (duplicateFile) {
         this.print(`Invoice ${name} aleady exists`);
@@ -189,7 +189,7 @@ export class DriveUploader {
     });
   }
 
-  private async findInvoiceFileByName(
+  private async findInvoiceByName(
     name: string,
     mimeType: string
   ): Promise<drive_v3.Schema$File | null> {
